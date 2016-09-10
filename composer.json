@@ -2,7 +2,7 @@
     "name": "Facebook Messenger platform bot sample",
     "description": "Facebook Messanger bot built with Silex",
     "require": {
-        "silex/silex": "~1.1"
+        "silex/silex": "~2.0"
     },
     "extra": {
         "heroku": {
