@@ -69,50 +69,27 @@ $app->get('/webhook/', function (Application $app, Request $request) {
  *
  */
 $app->post('/webhook', function (Application $app, Request $request) {
-    $data = $request->request->all();
-
-    // payload
-/**
-{
-  "object": "page",
-  "entry": [
-    {
-      "id": "280849715632589",
-      "time": 1473529956066,
-      "messaging": [
-        {
-          "sender": {
-            "id": "1139262466132185"
-          },
-          "recipient": {
-            "id": "280849715632589"
-          },
-          "timestamp": 1473529955951,
-          "message": {
-            "mid": "mid.1473529955943:f3fc08bd26f6a28680",
-            "seq": 165,
-            "text": "test-20:52"
-          }
-        }
-      ]
-    }
-  ]
-}
-**/
-
-    $app['monolog']->addInfo('====== REQUEST ===== ');
-    $app['monolog']->addInfo((string) $request);
-    $app['monolog']->addInfo('==================== ');
-    $app['monolog']->addInfo('====== REQUEST->content ===== ');
-    $app['monolog']->addInfo(var_export($request->getContent(), true));
-    $app['monolog']->addInfo('==================== ');
-    $app['monolog']->addInfo('====== POST params ===== ');
-    $app['monolog']->addInfo(var_export($data, true));
-    $app['monolog']->addInfo('======================== ');
+    $data = json_decode($request->getContent(), true);
+    $app['monolog']->addInfo('Request data: '. var_export($data, true));
 
     // Make sure this is a page subscription
     if (!isset($data['object']) || 'page' != $data['object']) {
       return new Response();
+    }
+
+    // Iterate over each entry
+    // There may be multiple if batched
+    foreach ($data['entry'] as $entry) {
+      $pageId = $entry['id'];
+      $timeOfEvent = $entry['time'];
+
+      foreach ($entry['messaging'] as $messagingEvent) {
+          if (isset($messagingEvent['optin'])) {
+              // receivedAuthentication($messagingEvent, $app);
+          } elseif (isset($messagingEvent['message'])) {
+              receivedMessage($messagingEvent, $app);
+          }
+      }
     }
 
     // Assume all went well.
@@ -123,3 +100,129 @@ $app->post('/webhook', function (Application $app, Request $request) {
 });
 
 $app->run();
+
+/*
+ * Message Event
+ *
+ * This event is called when a message is sent to your page. The 'message'
+ * object format can vary depending on the kind of message that was received.
+ * Read more at https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-received
+ *
+ * For this example, we're going to echo any text that we get. If we get some
+ * special keywords ('button', 'generic', 'receipt'), then we'll send back
+ * examples of those bubbles to illustrate the special message bubbles we've
+ * created. If we receive a message with an attachment (image, video, audio),
+ * then we'll simply confirm that we've received the attachment.
+ *
+ */
+function receivedMessage($event, $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+    $timeOfMessage = $event['timestamp'];
+    $message = $event['message'];
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'Received message for user %s and page %s at %s with message:',
+            $senderId,
+            $recipientId,
+            $timeOfMessage
+        )
+    );
+    $app['monolog']->addInfo(
+        json_encode($message)
+    );
+
+    $isEcho = isset($message['is_echo']) ? $message['is_echo'] : '';
+    $messageId = isset($message['mid']) ? $message['mid'] : '';
+    $appId = isset($message['app_id']) ? $message['app_id'] : '' ;
+    $metadata = isset($message['metadata']) ? $message['metadata'] : '';
+
+    // You may get a text or attachment but not both
+    $messageText = isset($message['text']) ? $message['text'] : '';
+    $messageAttachments = isset($message['attachments']) ? $message['attachments'] : '';
+    $quickReply = isset($message['quick_reply']) ? $message['quick_reply'] : '';
+
+    if ($isEcho) {
+        // Just logging message echoes to console
+        $app['monolog']->addInfo(
+            'Received echo for message %s and app %s with metadata %s',
+            $messageId,
+            $appId,
+            $metadata
+        );
+        return;
+    }
+
+    if ($quickReply) {
+        $quickReplyPayload = isset($quickReply['payload']) ? $quickReply['payload'] : '';
+        $app['monolog']->addInfo(
+            'Quick reply for message %s with payload %s',
+            $messageId,
+            $quickReplyPayload
+        );
+
+        sendTextMessage($senderId, 'Quick reply tapped');
+        return;
+    }
+
+    if ($messageText) {
+        // If we receive a text message, check to see if it matches any special
+        // keywords and send back the corresponding example. Otherwise, just echo
+        // the text we received.
+        switch ($messageText) {
+            case 'image':
+                // sendImageMessage($senderId);
+                break;
+
+            // ase...
+
+            default:
+                sendTextMessage($senderId, $messageText, $app);
+        }
+    } elseif ($messageAttachments) {
+        sendTextMessage($senderId, 'Message with attachment received', $app);
+    }
+}
+
+/*
+ * Send a text message using the Send API.
+ *
+ */
+function sendTextMessage($recipientId, $messageText, $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'text' => $messageText,
+            'metadata' => 'DEVELOPER_DEFINED_METADATA'
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Call the Send API. The message data goes in the body. If successful, we'll
+ * get the message id in a response
+ *
+ */
+ function callSendApi($messageData, $app) {
+
+    $app['monolog']->addInfo('Sending: '.var_export($messageData, true));
+
+    $curl = curl_init();
+    curl_setopt_array($curl, array(
+        CURLOPT_RETURNTRANSFER => 1,
+        CURLOPT_URL => 'https://graph.facebook.com/v2.6/me/messages/?access_token='.$app['page_access_token'],
+        CURLOPT_POST => 1,
+        CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+        CURLOPT_POSTFIELDS => json_encode($messageData)
+    ));
+
+    $response = curl_exec($curl);
+    curl_close($curl);
+
+    $app['monolog']->addInfo(var_export($response, true));
+ }
