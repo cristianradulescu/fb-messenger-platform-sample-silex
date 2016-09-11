@@ -88,16 +88,29 @@ $app->post('/webhook/', function (Application $app, Request $request) {
     // Iterate over each entry
     // There may be multiple if batched
     foreach ($data['entry'] as $entry) {
-      $pageId = $entry['id'];
-      $timeOfEvent = $entry['time'];
+        $pageId = $entry['id'];
+        $timeOfEvent = $entry['time'];
 
-      foreach ($entry['messaging'] as $messagingEvent) {
-          if (isset($messagingEvent['optin'])) {
-              // receivedAuthentication($messagingEvent, $app);
-          } elseif (isset($messagingEvent['message'])) {
-              receivedMessage($messagingEvent, $app);
-          }
-      }
+        foreach ($entry['messaging'] as $messagingEvent) {
+            if (isset($messagingEvent['optin'])) {
+                receivedAuthentication($messagingEvent, $app);
+            } elseif (isset($messagingEvent['message'])) {
+                receivedMessage($messagingEvent, $app);
+            } elseif (isset($messagingEvent['delivery'])) {
+                receivedDeliveryConfirmation($messagingEvent, $app);
+            } elseif (isset($messagingEvent['postback'])) {
+                receivedPostback($messagingEvent, $app);
+            } elseif (isset($messagingEvent['read'])) {
+                receivedMessageRead($messagingEvent, $app);
+            } elseif (isset($messagingEvent['account_linking'])) {
+                receivedMessageRead($messagingEvent, $app);
+            } else {
+                $app['monolog']->addInfo(
+                    'Webhook received unknown messagingEvent: '.
+                    var_export($messagingEvent, true)
+                );
+            }
+        }
     }
 
     // Assume all went well.
@@ -164,6 +177,44 @@ function verifyRequestSignature(Application $app, Request $request) {
     if ($signatureHash != $expectedHash) {
         throw new Exception("Couldn't validate the request signature.");
     }
+
+    $app['monolog']->addInfo('Request signature was successfully validated');
+}
+
+/*
+ * Authorization Event
+ *
+ * The value for 'optin.ref' is defined in the entry point. For the "Send to
+ * Messenger" plugin, it is the 'data-ref' field. Read more at
+ * https://developers.facebook.com/docs/messenger-platform/webhook-reference/authentication
+ *
+ */
+function receivedAuthentication($event, Application $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+    $timeOfAuth = $event['timestamp'];
+
+    // The 'ref' field is set in the 'Send to Messenger' plugin, in the 'data-ref'
+    // The developer can set this to an arbitrary value to associate the
+    // authentication callback with the 'Send to Messenger' click event. This is
+    // a way to do account linking when the user clicks the 'Send to Messenger'
+    // plugin.
+    $passTroughParam = $event['optin']['ref'];
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'Received authentication for user %s and page %s with pass '.
+            'through param "%s" at %s',
+            $senderId,
+            $recipientId,
+            $passThroughParam,
+            $timeOfAuth
+        )
+    );
+
+    // When an authentication is received, we'll send a message back to the sender
+    // to let them know it was successful.
+    sendTextMessage($senderId, 'Authentication successful');
 }
 
 /*
@@ -252,6 +303,120 @@ function receivedMessage($event, Application $app) {
     } elseif ($messageAttachments) {
         sendTextMessage($senderId, 'Message with attachment received', $app);
     }
+}
+
+/*
+ * Delivery Confirmation Event
+ *
+ * This event is sent to confirm the delivery of a message. Read more about
+ * these fields at https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-delivered
+ *
+ */
+function receivedDeliveryConfirmation($event, Application $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+    $delivery = $event['delivery'];
+    $messageIds = isset($delivery['mids']) ? $delivery['mids'] : array();
+    $watermark = $delivery['watermark'];
+    $sequenceNumber= $delivery['seq'];
+
+    foreach ($messageIds as $messageId) {
+        $app['monolog']->addInfo(
+            sprintf(
+                'Received delivery confirmation for message ID: %s',
+                $messageId
+            )
+        );
+    }
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'All message before %s were delivered.',
+            $watermark
+        )
+    );
+}
+
+/*
+ * Postback Event
+ *
+ * This event is called when a postback is tapped on a Structured Message.
+ * https://developers.facebook.com/docs/messenger-platform/webhook-reference/postback-received
+ *
+ */
+function receivedPostback($event, Application $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+    $timeOfPostback = $event['timestamp'];
+
+    // The 'payload' param is a developer-defined field which is set in a postback
+    // button for Structured Messages.
+    $payload = $event['postback']['payload'];
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'Received postback for user %s and page %s with payload "%s" at %s',
+            $senderId,
+            $recipientId,
+            $payload,
+            $timeOfPostback
+        )
+    );
+
+    // When a postback is called, we'll send a message back to the sender to
+    // let them know it was successful
+    sendTextMessage($senderId, 'Postback called');
+}
+
+/*
+ * Message Read Event
+ *
+ * This event is called when a previously-sent message has been read.
+ * https://developers.facebook.com/docs/messenger-platform/webhook-reference/message-read
+ *
+ */
+function receivedMessageRead($event, Application $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+
+    // All messages before watermark (a timestamp) or sequence have been seen.
+    $watermark = $delivery['watermark'];
+    $sequenceNumber= $delivery['seq'];
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'Received message read event for watermark %s and sequence '.
+            'number %s',
+            $watermark,
+            $sequenceNumber
+        )
+    );
+}
+
+/*
+ * Account Link Event
+ *
+ * This event is called when the Link Account or UnLink Account action has been
+ * tapped.
+ * https://developers.facebook.com/docs/messenger-platform/webhook-reference/account-linking
+ *
+ */
+function receivedAccountLink($event, Application $app) {
+    $senderId = $event['sender']['id'];
+    $recipientId = $event['recipient']['id'];
+
+    $status = $event['account_linking']['status'];
+    $authCode = $event['account_linking']['authorization_code'];
+
+    $app['monolog']->addInfo(
+        sprintf(
+            'Received account link event with for user %s with status %s '.
+            'and auth code %s ',
+            $senderId,
+            $status,
+            $authCode
+        )
+    );
 }
 
 /*
