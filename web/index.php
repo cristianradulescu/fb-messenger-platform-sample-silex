@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 $app = new Application();
-$app['debug'] = false;
+$app['debug'] = true;
 
 $app->register(new Silex\Provider\MonologServiceProvider(), array(
     'monolog.logfile' => 'php://stderr',
@@ -20,6 +20,10 @@ $app->register(new Silex\Provider\MonologServiceProvider(), array(
 $app->register(new Silex\Provider\TwigServiceProvider(), array(
     'twig.path' => __DIR__.'/../views',
 ));
+
+$app->before(function (Request $request, Application $app) {
+    verifyRequestSignature($app, $request);
+});
 
 // App Secret can be retrieved from the App Dashboard
 $app['app_secret'] = getenv('APP_SECRET')
@@ -74,11 +78,11 @@ $app->get('/webhook/', function (Application $app, Request $request) {
  */
 $app->post('/webhook', function (Application $app, Request $request) {
     $data = json_decode($request->getContent(), true);
-    $app['monolog']->addInfo('Request data: '. var_export($data, true));
+    $app['monolog']->addInfo('Request data: '.$request->getContent());
 
     // Make sure this is a page subscription
     if (!isset($data['object']) || 'page' != $data['object']) {
-      return new Response();
+        return new Response();
     }
 
     // Iterate over each entry
@@ -126,6 +130,41 @@ $app->post('/webhook', function (Application $app, Request $request) {
     ));
 
  });
+
+ /*
+ * Verify that the callback came from Facebook. Using the App Secret from
+ * the App Dashboard, we can verify the signature that is sent with each
+ * callback in the x-hub-signature field, located in the header.
+ *
+ * https://developers.facebook.com/docs/graph-api/webhooks#setup
+ *
+ */
+function verifyRequestSignature(Application $app, Request $request) {
+    $signature = $request->headers->get('x-hub-signature');
+    $app['monolog']->addInfo('X-Hub-Signature: '.$signature);
+
+    if (null === $signature) {
+        // For testing, let's log an error. In production, you should throw an
+        // error.
+        $app['monolog']->addError("Couldn't validate the signature.");
+
+        return;
+    }
+
+    $elements = explode('=', $signature);
+    $method = $elements[0];
+    $signatureHash = $elements[1];
+
+    $expectedHash = hash_hmac(
+        'sha1',
+        (string) $request->getContent(),
+        $app['app_secret']
+    );
+
+    if ($signatureHash != $expectedHash) {
+        throw new Exception("Couldn't validate the request signature.");
+    }
+}
 
 /*
  * Message Event
