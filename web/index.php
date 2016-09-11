@@ -214,7 +214,7 @@ function receivedAuthentication($event, Application $app) {
 
     // When an authentication is received, we'll send a message back to the sender
     // to let them know it was successful.
-    sendTextMessage($senderId, 'Authentication successful');
+    sendTextMessage($senderId, 'Authentication successful', $app);
 }
 
 /*
@@ -282,7 +282,7 @@ function receivedMessage($event, Application $app) {
             )
         );
 
-        sendTextMessage($senderId, 'Quick reply tapped');
+        sendTextMessage($senderId, 'Quick reply tapped', $app);
         return;
     }
 
@@ -411,7 +411,7 @@ function receivedPostback($event, Application $app) {
 
     // When a postback is called, we'll send a message back to the sender to
     // let them know it was successful
-    sendTextMessage($senderId, 'Postback called');
+    sendTextMessage($senderId, 'Postback called', $app);
 }
 
 /*
