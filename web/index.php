@@ -242,7 +242,7 @@ function receivedMessage($event, Application $app) {
             'Received message for user %s and page %s at %s with message:',
             $senderId,
             $recipientId,
-            $timeOfMessagem
+            $timeOfMessage
         )
     );
     $app['monolog']->addInfo(
@@ -292,7 +292,7 @@ function receivedMessage($event, Application $app) {
         // the text we received.
         switch ($messageText) {
             case 'image':
-                // sendImageMessage($senderId);
+                sendImageMessage($senderId, $app);
                 break;
 
             // case...
@@ -380,8 +380,8 @@ function receivedMessageRead($event, Application $app) {
     $recipientId = $event['recipient']['id'];
 
     // All messages before watermark (a timestamp) or sequence have been seen.
-    $watermark = $delivery['watermark'];
-    $sequenceNumber= $delivery['seq'];
+    $watermark = $event['read']['watermark'];
+    $sequenceNumber= $event['read']['seq'];
 
     $app['monolog']->addInfo(
         sprintf(
@@ -417,6 +417,28 @@ function receivedAccountLink($event, Application $app) {
             $authCode
         )
     );
+}
+
+/*
+ * Send an image using the Send API.
+ *
+ */
+function sendImageMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'image',
+                'payload' => array(
+                    'url' => $app['server_url'].'/assets/rift.png'
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
 }
 
 /*
