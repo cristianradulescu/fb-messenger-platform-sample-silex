@@ -17,6 +17,10 @@ $app->register(new Silex\Provider\MonologServiceProvider(), array(
         : \Monolog\Logger::INFO,
 ));
 
+$app->register(new Silex\Provider\TwigServiceProvider(), array(
+    'twig.path' => __DIR__.'/../views',
+));
+
 // App Secret can be retrieved from the App Dashboard
 $app['app_secret'] = getenv('APP_SECRET')
     ? getenv('APP_SECRET')
@@ -99,7 +103,29 @@ $app->post('/webhook', function (Application $app, Request $request) {
     return new Response();
 });
 
-$app->run();
+/*
+ * This path is used for account linking. The account linking call-to-action
+ * (sendAccountLinking) is pointed to this URL.
+ *
+ */
+ $app->get('/authorize/', function(Application $app, Request $request) {
+    $accountLinkingToken = $request->get('account_linking');
+    $redirectURI = $request->get('redirect_uri');
+
+    // Authorization Code should be generated per user by the developer. This will
+    // be passed to the Account Linking callback.
+    $authCode = '1234567890';
+
+    // Redirect users to this URI on successful login
+    $redirectURISuccess = $redirectURI.'&authorization_code='.$authCode;
+
+    return $app['twig']->render('authorize.twig', array(
+        'redirectURISuccess' => $redirectURISuccess,
+        'accountLinkingToken' => $accountLinkingToken,
+        'redirectURI' => $redirectURI
+    ));
+
+ });
 
 /*
  * Message Event
@@ -124,9 +150,7 @@ function receivedMessage($event, $app) {
     $app['monolog']->addInfo(
         sprintf(
             'Received message for user %s and page %s at %s with message:',
-            $senderId,
-            $recipientId,
-            $timeOfMessage
+            array($senderId, $recipientId, $timeOfMessage)
         )
     );
     $app['monolog']->addInfo(
@@ -147,9 +171,7 @@ function receivedMessage($event, $app) {
         // Just logging message echoes to console
         $app['monolog']->addInfo(
             'Received echo for message %s and app %s with metadata %s',
-            $messageId,
-            $appId,
-            $metadata
+            array($messageId, $appId, $metadata)
         );
         return;
     }
@@ -158,8 +180,7 @@ function receivedMessage($event, $app) {
         $quickReplyPayload = isset($quickReply['payload']) ? $quickReply['payload'] : '';
         $app['monolog']->addInfo(
             'Quick reply for message %s with payload %s',
-            $messageId,
-            $quickReplyPayload
+            array($messageId, $quickReplyPayload)
         );
 
         sendTextMessage($senderId, 'Quick reply tapped');
@@ -175,7 +196,7 @@ function receivedMessage($event, $app) {
                 // sendImageMessage($senderId);
                 break;
 
-            // ase...
+            // case...
 
             default:
                 sendTextMessage($senderId, $messageText, $app);
@@ -226,3 +247,5 @@ function sendTextMessage($recipientId, $messageText, $app) {
 
     $app['monolog']->addInfo(var_export($response, true));
  }
+
+$app->run();

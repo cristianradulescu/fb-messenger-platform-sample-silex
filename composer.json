@@ -3,7 +3,8 @@
     "description": "Facebook Messanger bot built with Silex",
     "require": {
         "silex/silex": "~2.0",
-        "monolog/monolog": "^1.21"
+        "monolog/monolog": "^1.21",
+        "twig/twig": "^1.24"
     },
     "extra": {
         "heroku": {
