@@ -295,7 +295,53 @@ function receivedMessage($event, Application $app) {
                 sendImageMessage($senderId, $app);
                 break;
 
-            // case...
+            case 'gif':
+                sendGifMessage($senderId, $app);
+                break;
+
+            case 'audio':
+                sendAudioMessage($senderId, $app);
+                break;
+
+            case 'video':
+                sendVideoMessage($senderId, $app);
+                break;
+
+            case 'file':
+                sendFileMessage($senderId, $app);
+                break;
+
+            case 'button':
+                sendButtonMessage($senderId, $app);
+                break;
+
+            case 'generic':
+                sendGenericMessage($senderId, $app);
+                break;
+
+            case 'receipt':
+                // sendReceiptMessage($senderId, $app);
+                // break;
+
+            case 'quick reply':
+                // sendQuickReply($senderId, $app);
+                // break;
+
+            case 'read receipt':
+                // sendReadReceipt($senderId, $app);
+                // break;
+
+            case 'typing on':
+                // sendTypingOn($senderId, $app);
+                // break;
+
+            case 'typing off':
+                // sendTypingOff($senderId, $app);
+                // break;
+
+            case 'account linking':
+                // sendAccountLinking($senderId, $app);
+                // break;
 
             default:
                 sendTextMessage($senderId, $messageText, $app);
@@ -442,6 +488,94 @@ function sendImageMessage($recipientId, Application $app) {
 }
 
 /*
+ * Send a Gif using the Send API.
+ *
+ */
+function sendGifMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'image',
+                'payload' => array(
+                    'url' => $app['server_url'].'/assets/instagram_logo.gif'
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send audio using the Send API.
+ *
+ */
+function sendAudioMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'audio',
+                'payload' => array(
+                    'url' => $app['server_url'].'/assets/sample.mp3'
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a video using the Send API.
+ *
+ */
+function sendVideoMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'video',
+                'payload' => array(
+                    'url' => $app['server_url'].'/assets/allofus480.mov'
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a video using the Send API.
+ *
+ */
+function sendFileMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'file',
+                'payload' => array(
+                    'url' => $app['server_url'].'/assets/text.txt'
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
  * Send a text message using the Send API.
  *
  */
@@ -453,6 +587,107 @@ function sendTextMessage($recipientId, $messageText, Application $app) {
         'message' => array(
             'text' => $messageText,
             'metadata' => 'DEVELOPER_DEFINED_METADATA'
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a button message using the Send API.
+ *
+ */
+function sendButtonMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'template',
+                'payload' => array(
+                    'template_type' => 'button',
+                    'text' => 'This is a test text',
+                    'buttons' => array(
+                        array(
+                            'type' => 'web_url',
+                            'url' => 'https://www.oculus.com/en-us/rift/',
+                            'title' => 'Open Web URL'
+                        ),
+                        array(
+                            'type' => 'postback',
+                            'title' => 'Trigger Postback',
+                            'payload' => 'DEVELOPED_DEFINED_PAYLOAD'
+                        ),
+                        array(
+                            'type' => 'phone_number',
+                            'title' => 'Call Phone Number',
+                            'payload' => '+16505551234'
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+
+/*
+ * Send a Structured Message (Generic Message type) using the Send API.
+ *
+ */
+function sendGenericMessage($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'template',
+                'payload' => array(
+                    'template_type' => 'generic',
+                    'elements' => array(
+                        array(
+                            'title' => 'rift',
+                            'subtitle' => 'Next-generation virtual reality',
+                            'item_url' => 'https://www.oculus.com/en-us/rift/',
+                            'image_url' => $app['server_url'].'/assets/rift.png',
+                            'buttons' => array(
+                                array(
+                                    'type' => 'web_url',
+                                    'url' => 'https://www.oculus.com/en-us/rift/',
+                                    'title' => 'Open Web URL'
+                                ),
+                                array(
+                                    'type' => 'postback',
+                                    'title' => 'Call Postback',
+                                    'payload' => 'Payload for first bubble'
+                                ),
+                            )
+                        ),
+                        array(
+                            'title' => 'touch',
+                            'subtitle' => 'Your Hands, Now in VR',
+                            'item_url' => 'https://www.oculus.com/en-us/touch/',
+                            'image_url' => $app['server_url'].'/assets/touch.png',
+                            'buttons' => array(
+                                array(
+                                    'type' => 'web_url',
+                                    'url' => 'https://www.oculus.com/en-us/touch/',
+                                    'title' => 'Open Web URL'
+                                ),
+                                array(
+                                    'type' => 'postback',
+                                    'title' => 'Call Postback',
+                                    'payload' => 'Payload for second bubble'
+                                ),
+                            )
+                        )
+                    )
+                )
+            )
         )
     );
 
