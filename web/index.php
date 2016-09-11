@@ -76,7 +76,7 @@ $app->get('/webhook/', function (Application $app, Request $request) {
  * https://developers.facebook.com/docs/messenger-platform/product-overview/setup#subscribe_app
  *
  */
-$app->post('/webhook', function (Application $app, Request $request) {
+$app->post('/webhook/', function (Application $app, Request $request) {
     $data = json_decode($request->getContent(), true);
     $app['monolog']->addInfo('Request data: '.$request->getContent());
 
@@ -180,7 +180,7 @@ function verifyRequestSignature(Application $app, Request $request) {
  * then we'll simply confirm that we've received the attachment.
  *
  */
-function receivedMessage($event, $app) {
+function receivedMessage($event, Application $app) {
     $senderId = $event['sender']['id'];
     $recipientId = $event['recipient']['id'];
     $timeOfMessage = $event['timestamp'];
@@ -189,7 +189,9 @@ function receivedMessage($event, $app) {
     $app['monolog']->addInfo(
         sprintf(
             'Received message for user %s and page %s at %s with message:',
-            array($senderId, $recipientId, $timeOfMessage)
+            $senderId,
+            $recipientId,
+            $timeOfMessagem
         )
     );
     $app['monolog']->addInfo(
@@ -209,8 +211,12 @@ function receivedMessage($event, $app) {
     if ($isEcho) {
         // Just logging message echoes to console
         $app['monolog']->addInfo(
-            'Received echo for message %s and app %s with metadata %s',
-            array($messageId, $appId, $metadata)
+            sprintf(
+                'Received echo for message %s and app %s with metadata %s',
+                $messageId,
+                $appId,
+                $metadata
+            )
         );
         return;
     }
@@ -218,8 +224,11 @@ function receivedMessage($event, $app) {
     if ($quickReply) {
         $quickReplyPayload = isset($quickReply['payload']) ? $quickReply['payload'] : '';
         $app['monolog']->addInfo(
-            'Quick reply for message %s with payload %s',
-            array($messageId, $quickReplyPayload)
+            sprintf(
+                'Quick reply for message %s with payload %s',
+                $messageId,
+                $quickReplyPayload
+            )
         );
 
         sendTextMessage($senderId, 'Quick reply tapped');
@@ -249,7 +258,7 @@ function receivedMessage($event, $app) {
  * Send a text message using the Send API.
  *
  */
-function sendTextMessage($recipientId, $messageText, $app) {
+function sendTextMessage($recipientId, $messageText, Application $app) {
     $messageData = array(
         'recipient' => array(
             'id' => $recipientId
@@ -268,7 +277,7 @@ function sendTextMessage($recipientId, $messageText, $app) {
  * get the message id in a response
  *
  */
- function callSendApi($messageData, $app) {
+ function callSendApi($messageData, Application $app) {
 
     $app['monolog']->addInfo('Sending: '.var_export($messageData, true));
 
