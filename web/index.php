@@ -47,10 +47,10 @@ $app['server_url'] = getenv('SERVER_URL')
     : '';
 
 /**
- * @todo What to do here?
+ * Nothing to see here
  */
 $app->get('/', function () {
-    return 'It works!?!';
+    return new Response('Application seems to be installed correctly');
 });
 
 /*
@@ -320,28 +320,28 @@ function receivedMessage($event, Application $app) {
                 break;
 
             case 'receipt':
-                // sendReceiptMessage($senderId, $app);
-                // break;
+                sendReceiptMessage($senderId, $app);
+                break;
 
             case 'quick reply':
-                // sendQuickReply($senderId, $app);
-                // break;
+                sendQuickReply($senderId, $app);
+                break;
 
             case 'read receipt':
-                // sendReadReceipt($senderId, $app);
-                // break;
+                sendReadReceipt($senderId, $app);
+                break;
 
             case 'typing on':
-                // sendTypingOn($senderId, $app);
-                // break;
+                sendTypingOn($senderId, $app);
+                break;
 
             case 'typing off':
-                // sendTypingOff($senderId, $app);
-                // break;
+                sendTypingOff($senderId, $app);
+                break;
 
             case 'account linking':
-                // sendAccountLinking($senderId, $app);
-                // break;
+                sendAccountLinking($senderId, $app);
+                break;
 
             default:
                 sendTextMessage($senderId, $messageText, $app);
@@ -695,6 +695,193 @@ function sendGenericMessage($recipientId, Application $app) {
 }
 
 /*
+ * Send a receipt message using the Send API.
+ *
+ */
+function sendReceiptMessage($recipientId, Application $app) {
+    // Generate a random receipt ID as the API requires a unique ID
+    $receiptId = 'order'.floor(rand(0, 1000));
+
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'template',
+                'payload' => array(
+                    'template_type' => 'receipt',
+                    'recipient_name' => 'Peter Chang',
+                    'order_number' => $receiptId,
+                    'currency' => 'USD',
+                    'payment_method' => 'VISA 1234',
+                    'timestamp' => '1428444852',
+                    'elements' => array(
+                        array(
+                            'title' => 'Oculus Rift',
+                            'subtitle' => 'Includes: headset, sensor, remote',
+                            'quantity' => 1,
+                            'price' => 599.00,
+                            'currency' => 'USD',
+                            'image_url' => $app['server_url'].'/assets/riftsq.png'
+                        ),
+                        array(
+                            'title' => 'Samsung Gear VR',
+                            'subtitle' => 'Frost White',
+                            'quantity' => 1,
+                            'price' => 99.00,
+                            'currency' => 'USD',
+                            'image_url' => $app['server_url'].'/assets/gearvrsq.png'
+                        )
+                    ),
+                    'address' => array(
+                        'street_1' => '1 Hacker Way',
+                        'street_2' => '',
+                        'city' => 'Menlo Park',
+                        'postal_code' => '94025',
+                        'state' => 'CA',
+                        'country' => 'US'
+                    ),
+                    'summary' => array(
+                        'subtotal' => 698.99,
+                        'shipping_cost' => 20.00,
+                        'total_tax' => 57.67,
+                        'total_cost' => 626.66
+                    ),
+                    'adjustments' => array(
+                        array(
+                            'name' => 'New Customer Discount',
+                            'amount' => -50
+                        ),
+                        array(
+                            'name' => '$100 Off Coupon',
+                            'amount' => -100
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a message with Quick Reply buttons.
+ *
+ */
+function sendQuickReply($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'text' => 'What\'s your favorite movie genre?',
+            'metadata' => 'DEVELOPER_DEFINED_METADATA',
+            'quick_replies' => array(
+                array(
+                    'content_type' => 'text',
+                    'title' => 'Action',
+                    'payload' => 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_ACTION'
+                ),
+                array(
+                    'content_type' => 'text',
+                    'title' => 'Comedy',
+                    'payload' => 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_COMEDY'
+                ),
+                array(
+                    'content_type' => 'text',
+                    'title' => 'Drama',
+                    'payload' => 'DEVELOPER_DEFINED_PAYLOAD_FOR_PICKING_DRAMA'
+                ),
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a read receipt to indicate the message has been read
+ *
+ */
+function sendReadReceipt($recipientId, Application $app) {
+    $app['monolog']->addInfo('Sending a read receipt to mark message as seen');
+
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'sender_action' => 'mark_seen'
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Turn typing indicator on
+ *
+ */
+function sendTypingOn($recipientId, Application $app) {
+    $app['monolog']->addInfo('Turning typing indicator on');
+
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'sender_action' => 'typing_on'
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Turn typing indicator off
+ *
+ */
+function sendTypingOff($recipientId, Application $app) {
+    $app['monolog']->addInfo('Turning typing indicator off');
+
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'sender_action' => 'typing_off'
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
+ * Send a message with the account linking call-to-action
+ *
+ */
+function sendAccountLinking($recipientId, Application $app) {
+    $messageData = array(
+        'recipient' => array(
+            'id' => $recipientId
+        ),
+        'message' => array(
+            'attachment' => array(
+                'type' => 'template',
+                'payload' => array(
+                    'template_type' => 'button',
+                    'text' => 'Welcome. Link your account.',
+                    'buttons' => array(
+                        array(
+                            'type' => 'account_link',
+                            'url' => $app['server_url'].'/authorize'
+                        )
+                    )
+                )
+            )
+        )
+    );
+
+    callSendApi($messageData, $app);
+}
+
+/*
  * Call the Send API. The message data goes in the body. If successful, we'll
  * get the message id in a response
  *
@@ -718,4 +905,6 @@ function sendGenericMessage($recipientId, Application $app) {
     $app['monolog']->addInfo(var_export($response, true));
  }
 
+ // Webhooks must be available via SSL with a certificate signed by a valid
+ // certificate authority.
 $app->run();
