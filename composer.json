@@ -1,6 +1,7 @@
 {
-    "name": "Facebook Messenger platform bot sample",
+    "name": "facebook-messenger-platform-bot-sample",
     "description": "Facebook Messanger bot built with Silex",
+    "license": "MIT",
     "require": {
         "silex/silex": "~2.0",
         "monolog/monolog": "^1.21",
